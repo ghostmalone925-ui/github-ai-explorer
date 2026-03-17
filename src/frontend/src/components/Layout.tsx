@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import {
   Bookmark,
+  Code,
   Heart,
   Key,
   LogIn,
@@ -127,6 +128,13 @@ export default function Layout() {
               >
                 <Bookmark className="w-4 h-4" />
                 Bookmarks
+              </Link>
+              <Link
+                to="/android-ide"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Code className="w-4 h-4" />
+                Android IDE
               </Link>
             </nav>
 
@@ -249,6 +257,13 @@ export default function Layout() {
             >
               <Bookmark className="w-3.5 h-3.5" />
               Bookmarks
+            </Link>
+            <Link
+              to="/android-ide"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors whitespace-nowrap"
+            >
+              <Code className="w-3.5 h-3.5" />
+              IDE
             </Link>
           </div>
         </div>

@@ -24,6 +24,7 @@ import RepoDetailsPage from "./pages/RepoDetailsPage";
 import SearchPage from "./pages/SearchPage";
 import SettingsPage from "./pages/SettingsPage";
 import StarHistoryPage from "./pages/StarHistoryPage";
+import AndroidIDEPage from "./pages/AndroidIDEPage";
 import TerminalPage from "./pages/TerminalPage";
 import TrendingPage from "./pages/TrendingPage";
 
@@ -150,6 +151,12 @@ const dockerRoute = createRoute({
   component: DockerPage,
 });
 
+const androidIdeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/android-ide",
+  component: AndroidIDEPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   searchRoute,
@@ -166,6 +173,7 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   terminalRoute,
   bridgeSetupRoute,
+  androidIdeRoute,
 ]);
 
 const router = createRouter({ routeTree });
