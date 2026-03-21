@@ -10,11 +10,14 @@ import {
 import { Filter, Search, X } from "lucide-react";
 import type React from "react";
 
+export type SortOption = "stars" | "forks" | "updated" | "best-match";
+
 export interface FilterState {
   query: string;
   language: string;
   topic: string;
   minStars: number;
+  sort: SortOption;
 }
 
 interface SearchFiltersProps {
@@ -66,7 +69,13 @@ export default function SearchFilters({
     filters.language || filters.topic || filters.minStars > 0;
 
   const clearFilters = () => {
-    onChange({ query: filters.query, language: "", topic: "", minStars: 0 });
+    onChange({
+      query: filters.query,
+      language: "",
+      topic: "",
+      minStars: 0,
+      sort: "stars",
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -147,6 +156,32 @@ export default function SearchFilters({
                 {opt.label}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        {/* Sort by */}
+        <Select
+          value={filters.sort || "stars"}
+          onValueChange={(val) =>
+            onChange({ ...filters, sort: val as SortOption })
+          }
+        >
+          <SelectTrigger className="h-8 w-32 text-xs font-mono bg-secondary/50 border-border focus:border-primary">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            <SelectItem value="stars" className="text-xs font-mono">
+              Most Stars
+            </SelectItem>
+            <SelectItem value="forks" className="text-xs font-mono">
+              Most Forks
+            </SelectItem>
+            <SelectItem value="updated" className="text-xs font-mono">
+              Recently Updated
+            </SelectItem>
+            <SelectItem value="best-match" className="text-xs font-mono">
+              Best Match
+            </SelectItem>
           </SelectContent>
         </Select>
 

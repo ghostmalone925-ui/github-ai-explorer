@@ -13,6 +13,7 @@ const DEFAULT_FILTERS: FilterState = {
   language: "",
   topic: "",
   minStars: 0,
+  sort: "stars",
 };
 
 function CardSkeleton() {
@@ -58,6 +59,7 @@ export default function SearchPage() {
         language: f.language || undefined,
         topic: f.topic || undefined,
         minStars: f.minStars || undefined,
+        sort: f.sort === "best-match" ? undefined : f.sort,
       });
       setRepos(result.items);
       setTotalCount(result.total_count);
@@ -130,11 +132,12 @@ export default function SearchPage() {
             <button
               type="button"
               onClick={() => {
-                const newFilters = {
+                const newFilters: FilterState = {
                   query: "awesome",
                   language: "",
                   topic: "",
                   minStars: 1000,
+                  sort: "stars",
                 };
                 setFilters(newFilters);
                 setTimeout(() => doSearch(newFilters), 0);

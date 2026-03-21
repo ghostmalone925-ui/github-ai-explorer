@@ -3,18 +3,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import {
-  Activity,
   AlertCircle,
   ArrowLeft,
-  Bug,
-  Container,
   ExternalLink,
   Eye,
   GitFork,
   Star,
-  TrendingUp,
   Users,
 } from "lucide-react";
 import React, { useState } from "react";
@@ -24,6 +20,8 @@ import { BookmarkButton } from "../components/BookmarkButton";
 import { ContributorsList } from "../components/ContributorsList";
 import { ForkButton } from "../components/ForkButton";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
+import { RepoHealthScore } from "../components/RepoHealthScore";
+import { RepoNavTabs } from "../components/RepoNavTabs";
 import { TechStackBadges } from "../components/TechStackBadges";
 import { useGetMyGithubToken } from "../hooks/useQueries";
 import {
@@ -46,46 +44,6 @@ function formatDate(dateStr: string): string {
     month: "short",
     day: "numeric",
   });
-}
-
-interface RepoNavTabsProps {
-  owner: string;
-  name: string;
-}
-
-function RepoNavTabs({ owner, name }: RepoNavTabsProps) {
-  const tabs = [
-    { label: "Details", to: `/repo/${owner}/${name}`, icon: null },
-    {
-      label: "Star History",
-      to: `/repo/${owner}/${name}/stars`,
-      icon: TrendingUp,
-    },
-    {
-      label: "Activity",
-      to: `/repo/${owner}/${name}/activity`,
-      icon: Activity,
-    },
-    { label: "Issues", to: `/repo/${owner}/${name}/issues`, icon: Bug },
-    { label: "Docker", to: `/repo/${owner}/${name}/docker`, icon: Container },
-  ];
-
-  return (
-    <div className="flex gap-1 mt-6 border-b border-border pb-0 overflow-x-auto">
-      {tabs.map((tab) => (
-        <Link
-          key={tab.to}
-          to={tab.to}
-          className="inline-flex items-center gap-1.5 px-3 py-2 font-mono text-xs text-muted-foreground hover:text-foreground border-b-2 border-transparent hover:border-primary/40 transition-colors whitespace-nowrap [&.active]:text-primary [&.active]:border-primary"
-          activeProps={{ className: "text-primary border-primary" }}
-          activeOptions={{ exact: true }}
-        >
-          {tab.icon && <tab.icon className="w-3.5 h-3.5" />}
-          {tab.label}
-        </Link>
-      ))}
-    </div>
-  );
 }
 
 export default function RepoDetailsPage() {
@@ -285,6 +243,10 @@ export default function RepoDetailsPage() {
 
         <div className="mb-6">
           <AIAnalysisPanel repo={repo} />
+        </div>
+
+        <div className="mb-6">
+          <RepoHealthScore repo={repo} />
         </div>
 
         <Tabs defaultValue="readme">

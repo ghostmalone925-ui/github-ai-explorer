@@ -15,6 +15,7 @@ import ActivityHeatmapPage from "./pages/ActivityHeatmapPage";
 import BookmarksPage from "./pages/BookmarksPage";
 import BridgeSetupPage from "./pages/BridgeSetupPage";
 import CICDPage from "./pages/CICDPage";
+import ComparePage from "./pages/ComparePage";
 import DockerPage from "./pages/DockerPage";
 import HomePage from "./pages/HomePage";
 import IssueTrackerPage from "./pages/IssueTrackerPage";
@@ -150,6 +151,12 @@ const dockerRoute = createRoute({
   component: DockerPage,
 });
 
+const compareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/compare",
+  component: ComparePage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   searchRoute,
@@ -162,6 +169,7 @@ const routeTree = rootRoute.addChildren([
   prPulseRoute,
   cicdRoute,
   dockerRoute,
+  compareRoute,
   profileRoute,
   settingsRoute,
   terminalRoute,

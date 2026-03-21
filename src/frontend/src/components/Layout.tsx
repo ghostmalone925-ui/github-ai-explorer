@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import {
+  ArrowLeftRight,
   Bookmark,
   Heart,
   Key,
@@ -127,6 +128,13 @@ export default function Layout() {
               >
                 <Bookmark className="w-4 h-4" />
                 Bookmarks
+              </Link>
+              <Link
+                to="/compare"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+                Compare
               </Link>
             </nav>
 
