@@ -59,7 +59,11 @@ export async function searchRepositories(
 
   const url = new URL(`${GITHUB_API_BASE}/search/repositories`);
   url.searchParams.set("q", q);
-  url.searchParams.set("sort", "stars");
+  if (params.sort) {
+    url.searchParams.set("sort", params.sort);
+  } else {
+    url.searchParams.set("sort", "stars");
+  }
   url.searchParams.set("order", "desc");
   url.searchParams.set("per_page", String(params.perPage || 30));
   url.searchParams.set("page", String(params.page || 1));

@@ -37,6 +37,7 @@ export interface SearchParams {
   language?: string;
   topic?: string;
   minStars?: number;
+  sort?: "stars" | "forks" | "updated";
   page?: number;
   perPage?: number;
 }
