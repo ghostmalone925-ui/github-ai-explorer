@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type {
   BuildOutput,
   BuildStatus,
@@ -6,6 +6,28 @@ import type {
 } from "../components/IDE/BuildPanel";
 import type { EditorTab } from "../components/IDE/CodeEditor";
 import { detectLanguage } from "../components/IDE/CodeEditor";
+import type { AIAction, AIMessage } from "../components/IDE/AIAssistantIDE";
+import type {
+  ApkAnalysis,
+} from "../components/IDE/ApkAnalyzer";
+import type { GitFileChange, GitState } from "../components/IDE/GitPanel";
+import type {
+  SearchFileResult,
+  SearchOptions,
+} from "../components/IDE/SearchPanel";
+import type {
+  Breakpoint,
+  DebugSession,
+  DebugState,
+  DebugVariable,
+  StackFrame,
+} from "../components/IDE/DebuggerPanel";
+import type { GradleDependency } from "../components/IDE/DependencyManager";
+import type {
+  ResourceSnapshot,
+  StorageInfo,
+} from "../components/IDE/PerformanceMonitor";
+import type { Secret } from "../components/IDE/SecretsManager";
 import type {
   AndroidDevice,
   EmulatorTemplate,
@@ -607,6 +629,61 @@ export function useAndroidProject() {
     "term-1",
   );
 
+  // Debugger state
+  const [debugState, setDebugState] = useState<DebugState>("idle");
+  const [breakpoints, setBreakpoints] = useState<Breakpoint[]>([]);
+  const [debugVariables, setDebugVariables] = useState<DebugVariable[]>([]);
+  const [callStack, setCallStack] = useState<StackFrame[]>([]);
+  const [debugCurrentFile, setDebugCurrentFile] = useState<string | null>(null);
+  const [debugCurrentLine, setDebugCurrentLine] = useState<number | null>(null);
+
+  // Dependency state
+  const [dependencies, setDependencies] = useState<GradleDependency[]>([]);
+
+  // APK Analyzer state
+  const [apkAnalysis, setApkAnalysis] = useState<ApkAnalysis | null>(null);
+  const [isAnalyzingApk, setIsAnalyzingApk] = useState(false);
+
+  // Performance monitor state
+  const [perfSnapshots, setPerfSnapshots] = useState<ResourceSnapshot[]>([]);
+  const [isPerfMonitoring, setIsPerfMonitoring] = useState(false);
+  const [perfIntervalRef, setPerfIntervalRef] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [storageInfo] = useState<StorageInfo>({
+    used: 42 * 1024 * 1024,
+    total: 256 * 1024 * 1024,
+    breakdown: [
+      { label: "Code", size: 12 * 1024 * 1024, color: "#60a5fa" },
+      { label: "Resources", size: 18 * 1024 * 1024, color: "#4ade80" },
+      { label: "Dependencies", size: 8 * 1024 * 1024, color: "#a78bfa" },
+      { label: "Build Cache", size: 4 * 1024 * 1024, color: "#facc15" },
+    ],
+  });
+
+  // Secrets state
+  const [secrets, setSecrets] = useState<Secret[]>([]);
+
+  // Git state
+  const [gitState, setGitState] = useState<GitState>({
+    currentBranch: "main",
+    branches: [
+      { name: "main", isCurrent: true, isRemote: false, lastCommit: "Initial commit" },
+      { name: "develop", isCurrent: false, isRemote: false, lastCommit: "Add feature" },
+      { name: "origin/main", isCurrent: false, isRemote: true, lastCommit: "Initial commit" },
+    ],
+    changes: [],
+    commits: [],
+    isClean: true,
+  });
+
+  // Search state
+  const [searchResults, setSearchResults] = useState<SearchFileResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTotalMatches, setSearchTotalMatches] = useState(0);
+
+  // AI Assistant state
+  const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+
   // ── Project creation ────────────────────────────────────────────────────
   const createProject = useCallback((config: ProjectConfig) => {
     const files = buildProjectFiles(config);
@@ -618,6 +695,104 @@ export function useAndroidProject() {
     setActiveTabId(null);
     setBuildOutput([]);
     setBuildStatus("idle");
+    setDebugState("idle");
+    setBreakpoints([]);
+    setDebugVariables([]);
+    setCallStack([]);
+
+    // Set default dependencies based on project config
+    const defaultDeps: GradleDependency[] = [
+      {
+        id: "dep-core-ktx",
+        group: "androidx.core",
+        artifact: "core-ktx",
+        version: "1.13.1",
+        scope: "implementation",
+        hasUpdate: false,
+        description: "Kotlin extensions for Android core",
+      },
+      {
+        id: "dep-lifecycle",
+        group: "androidx.lifecycle",
+        artifact: "lifecycle-runtime-ktx",
+        version: "2.8.4",
+        scope: "implementation",
+        hasUpdate: false,
+        description: "Lifecycle-aware components",
+      },
+      {
+        id: "dep-junit",
+        group: "junit",
+        artifact: "junit",
+        version: "4.13.2",
+        scope: "testImplementation",
+        hasUpdate: false,
+        description: "JUnit testing framework",
+      },
+      {
+        id: "dep-espresso",
+        group: "androidx.test.espresso",
+        artifact: "espresso-core",
+        version: "3.6.1",
+        scope: "androidTestImplementation",
+        hasUpdate: false,
+        description: "Android UI testing",
+      },
+    ];
+
+    if (config.useCompose) {
+      defaultDeps.push(
+        {
+          id: "dep-activity-compose",
+          group: "androidx.activity",
+          artifact: "activity-compose",
+          version: "1.9.1",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Compose integration with Activity",
+        },
+        {
+          id: "dep-compose-bom",
+          group: "androidx.compose",
+          artifact: "compose-bom",
+          version: "2024.08.00",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Compose Bill of Materials",
+        },
+        {
+          id: "dep-compose-material3",
+          group: "androidx.compose.material3",
+          artifact: "material3",
+          version: "1.2.1",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Material Design 3 for Compose",
+        },
+      );
+    } else {
+      defaultDeps.push(
+        {
+          id: "dep-appcompat",
+          group: "androidx.appcompat",
+          artifact: "appcompat",
+          version: "1.7.0",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "AppCompat support library",
+        },
+        {
+          id: "dep-material",
+          group: "com.google.android.material",
+          artifact: "material",
+          version: "1.12.0",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Material Design components",
+        },
+      );
+    }
+    setDependencies(defaultDeps);
 
     // Open the main activity file automatically
     const pkgPath = config.packageName.replace(/\./g, "/");
@@ -1086,6 +1261,695 @@ export function useAndroidProject() {
     );
   }, []);
 
+  // ── Debugger operations ─────────────────────────────────────────────────
+
+  const debugSession: DebugSession = useMemo(
+    () => ({
+      state: debugState,
+      breakpoints,
+      variables: debugVariables,
+      callStack,
+      currentFile: debugCurrentFile,
+      currentLine: debugCurrentLine,
+    }),
+    [
+      debugState,
+      breakpoints,
+      debugVariables,
+      callStack,
+      debugCurrentFile,
+      debugCurrentLine,
+    ],
+  );
+
+  const startDebug = useCallback(() => {
+    setDebugState("running");
+    // Simulate hitting a breakpoint after a short delay
+    setTimeout(() => {
+      setDebugState("paused");
+      const pkgPath = projectConfig?.packageName.replace(/\./g, "/") ?? "";
+      const mainFile = `app/src/main/java/${pkgPath}/MainActivity.kt`;
+      setDebugCurrentFile(mainFile);
+      setDebugCurrentLine(12);
+      setCallStack([
+        {
+          id: "frame-1",
+          functionName: "MainActivity.onCreate",
+          file: mainFile,
+          line: 12,
+          isCurrentFrame: true,
+        },
+        {
+          id: "frame-2",
+          functionName: "AppCompatActivity.onCreate",
+          file: "AppCompatActivity.kt",
+          line: 245,
+          isCurrentFrame: false,
+        },
+        {
+          id: "frame-3",
+          functionName: "Activity.performCreate",
+          file: "Activity.java",
+          line: 8169,
+          isCurrentFrame: false,
+        },
+      ]);
+      setDebugVariables([
+        {
+          name: "this",
+          value: "MainActivity@3a71f4",
+          type: "MainActivity",
+          children: [
+            {
+              name: "binding",
+              value: "ActivityMainBinding@7c2e",
+              type: "ActivityMainBinding",
+            },
+            { name: "lifecycle", value: "CREATED", type: "Lifecycle.State" },
+          ],
+        },
+        {
+          name: "savedInstanceState",
+          value: "null",
+          type: "Bundle?",
+        },
+      ]);
+    }, 1500);
+  }, [projectConfig]);
+
+  const stopDebug = useCallback(() => {
+    setDebugState("idle");
+    setDebugCurrentFile(null);
+    setDebugCurrentLine(null);
+    setCallStack([]);
+    setDebugVariables([]);
+  }, []);
+
+  const pauseDebug = useCallback(() => {
+    setDebugState("paused");
+  }, []);
+
+  const resumeDebug = useCallback(() => {
+    setDebugState("running");
+    setDebugVariables([]);
+    setCallStack([]);
+    // Simulate hitting next breakpoint
+    setTimeout(() => {
+      if (breakpoints.length > 0) {
+        setDebugState("paused");
+      }
+    }, 800);
+  }, [breakpoints]);
+
+  const stepOver = useCallback(() => {
+    setDebugCurrentLine((prev) => (prev !== null ? prev + 1 : null));
+  }, []);
+
+  const stepInto = useCallback(() => {
+    setDebugCurrentLine((prev) => (prev !== null ? prev + 1 : null));
+    setCallStack((prev) => [
+      {
+        id: `frame-${Date.now()}`,
+        functionName: "setContentView",
+        file: "Activity.java",
+        line: 3294,
+        isCurrentFrame: true,
+      },
+      ...prev.map((f) => ({ ...f, isCurrentFrame: false })),
+    ]);
+  }, []);
+
+  const stepOut = useCallback(() => {
+    setCallStack((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.slice(1);
+      if (next.length > 0) next[0] = { ...next[0], isCurrentFrame: true };
+      return next;
+    });
+  }, []);
+
+  const toggleBreakpoint = useCallback((id: string) => {
+    setBreakpoints((prev) =>
+      prev.map((bp) =>
+        bp.id === id ? { ...bp, enabled: !bp.enabled } : bp,
+      ),
+    );
+  }, []);
+
+  const removeBreakpoint = useCallback((id: string) => {
+    setBreakpoints((prev) => prev.filter((bp) => bp.id !== id));
+  }, []);
+
+  const clearBreakpoints = useCallback(() => {
+    setBreakpoints([]);
+  }, []);
+
+  // ── Dependency operations ───────────────────────────────────────────────
+
+  const addDependency = useCallback(
+    (dep: Omit<GradleDependency, "id" | "hasUpdate">) => {
+      const newDep: GradleDependency = {
+        ...dep,
+        id: `dep-${Date.now()}`,
+        hasUpdate: false,
+      };
+      setDependencies((prev) => [...prev, newDep]);
+    },
+    [],
+  );
+
+  const removeDependency = useCallback((id: string) => {
+    setDependencies((prev) => prev.filter((d) => d.id !== id));
+  }, []);
+
+  const updateDependency = useCallback((id: string, newVersion: string) => {
+    setDependencies((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, version: newVersion, hasUpdate: false, latestVersion: undefined }
+          : d,
+      ),
+    );
+  }, []);
+
+  const updateAllDependencies = useCallback(() => {
+    setDependencies((prev) =>
+      prev.map((d) =>
+        d.hasUpdate && d.latestVersion
+          ? { ...d, version: d.latestVersion, hasUpdate: false, latestVersion: undefined }
+          : d,
+      ),
+    );
+  }, []);
+
+  const refreshDependencies = useCallback(() => {
+    // Simulate checking for updates
+    setDependencies((prev) =>
+      prev.map((d) => {
+        const parts = d.version.split(".");
+        if (parts.length >= 3) {
+          const patch = Number.parseInt(parts[2], 10);
+          if (!Number.isNaN(patch) && Math.random() > 0.6) {
+            parts[2] = String(patch + 1);
+            return {
+              ...d,
+              hasUpdate: true,
+              latestVersion: parts.join("."),
+            };
+          }
+        }
+        return d;
+      }),
+    );
+  }, []);
+
+  // ── APK Analyzer operations ──────────────────────────────────────────────
+
+  const analyzeApk = useCallback(() => {
+    if (!projectConfig) return;
+    setIsAnalyzingApk(true);
+    setTimeout(() => {
+      const analysis: ApkAnalysis = {
+        totalSize: 8.4 * 1024 * 1024,
+        downloadSize: 5.2 * 1024 * 1024,
+        minSdk: projectConfig.minSdk,
+        targetSdk: projectConfig.targetSdk,
+        versionCode: 1,
+        versionName: "1.0",
+        packageName: projectConfig.packageName,
+        permissions: [
+          "android.permission.INTERNET",
+          "android.permission.ACCESS_NETWORK_STATE",
+        ],
+        sizeBreakdown: [
+          {
+            name: "classes.dex",
+            size: 3.2 * 1024 * 1024,
+            percentage: 38.1,
+            icon: "code",
+            children: [
+              { name: "app code", size: 0.8 * 1024 * 1024, percentage: 9.5, icon: "code" },
+              { name: "kotlin-stdlib", size: 1.2 * 1024 * 1024, percentage: 14.3, icon: "code" },
+              { name: "androidx.*", size: 1.0 * 1024 * 1024, percentage: 11.9, icon: "code" },
+              { name: "other libs", size: 0.2 * 1024 * 1024, percentage: 2.4, icon: "code" },
+            ],
+          },
+          {
+            name: "res/",
+            size: 2.8 * 1024 * 1024,
+            percentage: 33.3,
+            icon: "resource",
+            children: [
+              { name: "drawable", size: 1.8 * 1024 * 1024, percentage: 21.4, icon: "resource" },
+              { name: "layout", size: 0.3 * 1024 * 1024, percentage: 3.6, icon: "resource" },
+              { name: "values", size: 0.4 * 1024 * 1024, percentage: 4.8, icon: "resource" },
+              { name: "mipmap", size: 0.3 * 1024 * 1024, percentage: 3.6, icon: "resource" },
+            ],
+          },
+          { name: "lib/", size: 1.5 * 1024 * 1024, percentage: 17.9, icon: "native" },
+          { name: "assets/", size: 0.6 * 1024 * 1024, percentage: 7.1, icon: "asset" },
+          { name: "META-INF/", size: 0.2 * 1024 * 1024, percentage: 2.4, icon: "other" },
+          { name: "other", size: 0.1 * 1024 * 1024, percentage: 1.2, icon: "other" },
+        ],
+        dexFiles: [
+          {
+            name: "classes.dex",
+            classCount: 4892,
+            methodCount: 32450,
+            fieldCount: 18230,
+            size: 3.2 * 1024 * 1024,
+          },
+        ],
+        signingInfo: {
+          version: "v2 (APK Signature Scheme v2)",
+          issuer: "CN=Android Debug, O=Android, C=US",
+          validFrom: "2024-01-01",
+          validTo: "2054-01-01",
+          algorithm: "SHA-256 with RSA",
+        },
+        totalMethodCount: 32450,
+        methodLimit: 65536,
+      };
+      setApkAnalysis(analysis);
+      setIsAnalyzingApk(false);
+    }, 2000);
+  }, [projectConfig]);
+
+  // ── Performance monitor operations ────────────────────────────────────────
+
+  const togglePerfMonitoring = useCallback(() => {
+    if (isPerfMonitoring) {
+      if (perfIntervalRef) {
+        clearInterval(perfIntervalRef);
+        setPerfIntervalRef(null);
+      }
+      setIsPerfMonitoring(false);
+    } else {
+      setIsPerfMonitoring(true);
+      const interval = setInterval(() => {
+        const snapshot: ResourceSnapshot = {
+          timestamp: Date.now(),
+          cpu: 15 + Math.random() * 40 + Math.sin(Date.now() / 3000) * 10,
+          memory: 128 + Math.random() * 80 + Math.sin(Date.now() / 5000) * 30,
+          network: {
+            rx: Math.random() * 2048,
+            tx: Math.random() * 512,
+          },
+          fps: 55 + Math.random() * 5,
+          threads: 12 + Math.floor(Math.random() * 4),
+        };
+        setPerfSnapshots((prev) => [...prev.slice(-120), snapshot]);
+      }, 1000);
+      setPerfIntervalRef(interval);
+    }
+  }, [isPerfMonitoring, perfIntervalRef]);
+
+  const clearPerfData = useCallback(() => {
+    setPerfSnapshots([]);
+  }, []);
+
+  // ── Secrets operations ────────────────────────────────────────────────────
+
+  const addSecret = useCallback((key: string, value: string) => {
+    const now = new Date().toLocaleString();
+    const secret: Secret = {
+      id: `secret-${Date.now()}`,
+      key,
+      value,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setSecrets((prev) => [...prev, secret]);
+  }, []);
+
+  const updateSecret = useCallback((id: string, key: string, value: string) => {
+    setSecrets((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, key, value, updatedAt: new Date().toLocaleString() }
+          : s,
+      ),
+    );
+  }, []);
+
+  const deleteSecret = useCallback((id: string) => {
+    setSecrets((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  // ── Git operations ────────────────────────────────────────────────────────
+
+  const gitStageFile = useCallback((path: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) =>
+        c.path === path ? { ...c, staged: true } : c,
+      ),
+    }));
+  }, []);
+
+  const gitUnstageFile = useCallback((path: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) =>
+        c.path === path ? { ...c, staged: false } : c,
+      ),
+    }));
+  }, []);
+
+  const gitStageAll = useCallback(() => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) => ({ ...c, staged: true })),
+    }));
+  }, []);
+
+  const gitUnstageAll = useCallback(() => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) => ({ ...c, staged: false })),
+    }));
+  }, []);
+
+  const gitCommit = useCallback(
+    (message: string) => {
+      const now = new Date();
+      const newCommit = {
+        hash: `${Date.now().toString(16)}abcdef`,
+        shortHash: Date.now().toString(16).slice(-7),
+        message,
+        author: "Developer",
+        date: now.toLocaleDateString(),
+        branch: gitState.currentBranch,
+      };
+      setGitState((prev) => ({
+        ...prev,
+        commits: [newCommit, ...prev.commits],
+        changes: prev.changes.filter((c) => !c.staged),
+        isClean: prev.changes.filter((c) => !c.staged).length === 0,
+      }));
+    },
+    [gitState.currentBranch],
+  );
+
+  const gitPush = useCallback(() => {
+    // Simulated push
+  }, []);
+
+  const gitPull = useCallback(() => {
+    // Simulated pull
+  }, []);
+
+  const gitCheckoutBranch = useCallback((name: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      currentBranch: name,
+      branches: prev.branches.map((b) => ({
+        ...b,
+        isCurrent: b.name === name,
+      })),
+    }));
+  }, []);
+
+  const gitCreateBranch = useCallback(
+    (name: string) => {
+      setGitState((prev) => ({
+        ...prev,
+        currentBranch: name,
+        branches: [
+          ...prev.branches.map((b) => ({ ...b, isCurrent: false })),
+          {
+            name,
+            isCurrent: true,
+            isRemote: false,
+            lastCommit: prev.commits[0]?.message ?? "Initial commit",
+          },
+        ],
+      }));
+    },
+    [],
+  );
+
+  const gitDiscardChanges = useCallback((path: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.filter((c) => c.path !== path),
+      isClean: prev.changes.filter((c) => c.path !== path).length === 0,
+    }));
+  }, []);
+
+  // ── Search operations ─────────────────────────────────────────────────────
+
+  const searchFiles = useCallback(
+    (query: string, options: SearchOptions) => {
+      if (!query.trim() || !projectConfig) {
+        setSearchResults([]);
+        setSearchTotalMatches(0);
+        return;
+      }
+      setIsSearching(true);
+      setTimeout(() => {
+        // Simulate search across file contents
+        const results: SearchFileResult[] = [];
+        let total = 0;
+        for (const [path, content] of Object.entries(fileContents)) {
+          const lines = content.split("\n");
+          const matches: SearchFileResult["matches"] = [];
+          const searchQuery = options.caseSensitive
+            ? query
+            : query.toLowerCase();
+
+          lines.forEach((line, idx) => {
+            const searchLine = options.caseSensitive
+              ? line
+              : line.toLowerCase();
+            let col = searchLine.indexOf(searchQuery);
+            while (col !== -1) {
+              matches.push({
+                line: idx + 1,
+                column: col,
+                length: query.length,
+                lineContent: line.trim(),
+                preContext: "",
+                postContext: "",
+              });
+              col = searchLine.indexOf(searchQuery, col + 1);
+            }
+          });
+
+          if (matches.length > 0) {
+            results.push({
+              filePath: path,
+              fileName: path.split("/").pop() || path,
+              matches,
+            });
+            total += matches.length;
+          }
+        }
+        setSearchResults(results);
+        setSearchTotalMatches(total);
+        setIsSearching(false);
+      }, 300);
+    },
+    [projectConfig, fileContents],
+  );
+
+  const searchReplace = useCallback(
+    (_query: string, _replacement: string, _options: SearchOptions) => {
+      // Simulated replace
+    },
+    [],
+  );
+
+  const searchReplaceAll = useCallback(
+    (_query: string, _replacement: string, _options: SearchOptions) => {
+      // Simulated replace all
+    },
+    [],
+  );
+
+  const searchOpenResult = useCallback(
+    (filePath: string, _line: number) => {
+      // Open the file in the editor
+      const content = fileContents[filePath];
+      if (!content) return;
+
+      const existing = editorTabs.find((t) => t.id === filePath);
+      if (existing) {
+        setActiveTabId(existing.id);
+        return;
+      }
+
+      const fileName = filePath.split("/").pop() || filePath;
+      const tab: EditorTab = {
+        id: filePath,
+        filename: fileName,
+        filepath: filePath,
+        content,
+        language: detectLanguage(fileName),
+        isDirty: false,
+      };
+      setEditorTabs((prev) => [...prev, tab]);
+      setActiveTabId(tab.id);
+    },
+    [fileContents, editorTabs],
+  );
+
+  // ── AI Assistant operations ───────────────────────────────────────────────
+
+  const aiSendMessage = useCallback(
+    (message: string, action?: AIAction) => {
+      const userMsg: AIMessage = {
+        id: `msg-${Date.now()}`,
+        role: "user",
+        content: message,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setAiMessages((prev) => [...prev, userMsg]);
+      setIsAiProcessing(true);
+
+      // Simulate AI response
+      setTimeout(() => {
+        let responseContent = "";
+        let codeBlock: AIMessage["codeBlock"] = undefined;
+
+        if (action === "generate" || message.toLowerCase().includes("generate")) {
+          responseContent =
+            "Here is the generated code based on your request:";
+          codeBlock = {
+            language: "kotlin",
+            code: `@Composable
+fun GreetingCard(name: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Hello, $name!",
+                style = MaterialTheme.typography.headlineSmall
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Welcome to the app",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}`,
+          };
+        } else if (action === "explain" || message.toLowerCase().includes("explain")) {
+          responseContent =
+            "This code defines an Android Activity using Kotlin. The `onCreate` method is the entry point called when the activity is first created.\n\nThe `setContent` block is specific to Jetpack Compose - it sets up the Compose UI hierarchy. Inside, `AppTheme` applies Material Design theming, and `Scaffold` provides the basic layout structure with support for top bars, bottom bars, and FABs.\n\nThe `Greeting` composable is a simple function that displays text using the `Text` component.";
+        } else if (action === "fix" || message.toLowerCase().includes("fix")) {
+          responseContent =
+            "I found the issue. The crash is likely caused by a missing null check. Here is the fix:";
+          codeBlock = {
+            language: "kotlin",
+            code: `// Before (crashes on null)
+val name = intent.getStringExtra("name")
+textView.text = name.uppercase()
+
+// After (safe)
+val name = intent.getStringExtra("name") ?: "Guest"
+textView.text = name.uppercase()`,
+          };
+        } else if (action === "optimize" || message.toLowerCase().includes("optimize")) {
+          responseContent =
+            "Here are the optimizations I recommend:\n\n1. Use `remember` to cache expensive calculations\n2. Use `LazyColumn` instead of `Column` for large lists\n3. Move state hoisting up to reduce recompositions";
+          codeBlock = {
+            language: "kotlin",
+            code: `// Optimized: Use derivedStateOf to avoid unnecessary recomposition
+val filteredList by remember(searchQuery, items) {
+    derivedStateOf {
+        items.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
+}
+
+LazyColumn {
+    items(filteredList, key = { it.id }) { item ->
+        ItemRow(item = item)
+    }
+}`,
+          };
+        } else if (action === "test" || message.toLowerCase().includes("test")) {
+          responseContent = "Here are unit tests for the code:";
+          codeBlock = {
+            language: "kotlin",
+            code: `@Test
+fun \`greeting displays correct name\`() {
+    composeTestRule.setContent {
+        AppTheme {
+            Greeting(name = "Android")
+        }
+    }
+    composeTestRule
+        .onNodeWithText("Hello Android!")
+        .assertIsDisplayed()
+}
+
+@Test
+fun \`greeting with empty name shows default\`() {
+    composeTestRule.setContent {
+        AppTheme {
+            Greeting(name = "")
+        }
+    }
+    composeTestRule
+        .onNodeWithText("Hello !")
+        .assertIsDisplayed()
+}`,
+          };
+        } else {
+          responseContent =
+            "I can help with that! Could you provide more details about what you are looking for? I can generate code, explain existing code, fix bugs, optimize performance, or write tests.";
+        }
+
+        const assistantMsg: AIMessage = {
+          id: `msg-${Date.now()}`,
+          role: "assistant",
+          content: responseContent,
+          timestamp: new Date().toLocaleTimeString(),
+          codeBlock,
+        };
+        setAiMessages((prev) => [...prev, assistantMsg]);
+        setIsAiProcessing(false);
+      }, 1500);
+    },
+    [],
+  );
+
+  const aiClearChat = useCallback(() => {
+    setAiMessages([]);
+  }, []);
+
+  const aiInsertCode = useCallback(
+    (code: string) => {
+      if (!activeTabId) return;
+      setEditorTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === activeTabId
+            ? { ...tab, content: `${tab.content}\n\n${code}`, isDirty: true }
+            : tab,
+        ),
+      );
+    },
+    [activeTabId],
+  );
+
+  // ── Layout preview helpers ──────────────────────────────────────────────
+
+  const activeEditorContent = useMemo(() => {
+    if (!activeTabId) return { content: null, fileName: null };
+    const tab = editorTabs.find((t) => t.id === activeTabId);
+    if (!tab) return { content: null, fileName: null };
+    const isXml = tab.filename.endsWith(".xml");
+    return {
+      content: isXml ? tab.content : null,
+      fileName: isXml ? tab.filename : null,
+    };
+  }, [activeTabId, editorTabs]);
+
   return {
     // Project
     projectConfig,
@@ -1139,5 +2003,80 @@ export function useAndroidProject() {
     closeTerminalTab,
     executeTerminalCommand,
     clearTerminal,
+
+    // Debugger
+    debugSession,
+    startDebug,
+    stopDebug,
+    pauseDebug,
+    resumeDebug,
+    stepOver,
+    stepInto,
+    stepOut,
+    toggleBreakpoint,
+    removeBreakpoint,
+    clearBreakpoints,
+
+    // Dependencies
+    dependencies,
+    addDependency,
+    removeDependency,
+    updateDependency,
+    updateAllDependencies,
+    refreshDependencies,
+
+    // Layout preview
+    activeXmlContent: activeEditorContent.content,
+    activeXmlFileName: activeEditorContent.fileName,
+
+    // APK Analyzer
+    apkAnalysis,
+    isAnalyzingApk,
+    analyzeApk,
+
+    // Performance monitor
+    perfSnapshots,
+    storageInfo,
+    isPerfMonitoring,
+    togglePerfMonitoring,
+    clearPerfData,
+
+    // Secrets
+    secrets,
+    addSecret,
+    updateSecret,
+    deleteSecret,
+
+    // Git
+    gitState,
+    gitStageFile,
+    gitUnstageFile,
+    gitStageAll,
+    gitUnstageAll,
+    gitCommit,
+    gitPush,
+    gitPull,
+    gitCheckoutBranch,
+    gitCreateBranch,
+    gitDiscardChanges,
+
+    // Search
+    searchResults,
+    isSearching,
+    searchTotalMatches,
+    searchFiles,
+    searchReplace,
+    searchReplaceAll,
+    searchOpenResult,
+
+    // AI Assistant
+    aiMessages,
+    isAiProcessing,
+    aiSendMessage,
+    aiClearChat,
+    aiInsertCode,
+
+    // Active file info for AI context
+    activeFileName: editorTabs.find((t) => t.id === activeTabId)?.filename ?? null,
   };
 }
