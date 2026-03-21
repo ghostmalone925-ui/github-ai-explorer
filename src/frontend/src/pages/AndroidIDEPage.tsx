@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import {
   Activity,
+  Bot,
   Bug,
   Code,
   Eye,
   FolderPlus,
+  GitBranch,
   Hammer,
   Layers,
   Library,
@@ -14,11 +16,13 @@ import {
   PanelLeftOpen,
   PieChart,
   Play,
+  Search,
   Smartphone,
   Terminal,
 } from "lucide-react";
 import React, { useState } from "react";
 
+import { AIAssistantIDE } from "../components/IDE/AIAssistantIDE";
 import { ApkAnalyzer } from "../components/IDE/ApkAnalyzer";
 import { BuildPanel } from "../components/IDE/BuildPanel";
 import { CodeEditor } from "../components/IDE/CodeEditor";
@@ -26,6 +30,7 @@ import { DebuggerPanel } from "../components/IDE/DebuggerPanel";
 import { DependencyManager } from "../components/IDE/DependencyManager";
 import { DeviceManager } from "../components/IDE/DeviceManager";
 import { FileExplorer } from "../components/IDE/FileExplorer";
+import { GitPanel } from "../components/IDE/GitPanel";
 import { IDETerminal } from "../components/IDE/IDETerminal";
 import { LayoutPreview } from "../components/IDE/LayoutPreview";
 import { LogcatViewer } from "../components/IDE/LogcatViewer";
@@ -34,11 +39,12 @@ import {
   type ProjectConfig,
   ProjectManager,
 } from "../components/IDE/ProjectManager";
+import { SearchPanel } from "../components/IDE/SearchPanel";
 import { SecretsManager } from "../components/IDE/SecretsManager";
 
 import { useAndroidProject } from "../hooks/useAndroidProject";
 
-type RightPanel = "build" | "logcat" | "devices" | "debugger" | "dependencies" | "apk" | "performance" | "secrets" | null;
+type RightPanel = "build" | "logcat" | "devices" | "debugger" | "dependencies" | "apk" | "performance" | "secrets" | "git" | "search" | "ai" | null;
 
 export default function AndroidIDEPage() {
   const project = useAndroidProject();
@@ -230,6 +236,33 @@ export default function AndroidIDEPage() {
             <Lock className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Secrets</span>
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("git")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "git" ? "bg-muted text-primary" : ""}`}
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Git</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("search")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "search" ? "bg-muted text-primary" : ""}`}
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Search</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("ai")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "ai" ? "bg-muted text-primary" : ""}`}
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">AI</span>
+          </Button>
 
           <div className="w-px h-4 bg-border/50 mx-1" />
 
@@ -401,6 +434,45 @@ export default function AndroidIDEPage() {
                 hasProject={project.hasProject}
               />
             )}
+            {rightPanel === "git" && (
+              <GitPanel
+                gitState={project.gitState}
+                onStageFile={project.gitStageFile}
+                onUnstageFile={project.gitUnstageFile}
+                onStageAll={project.gitStageAll}
+                onUnstageAll={project.gitUnstageAll}
+                onCommit={project.gitCommit}
+                onPush={project.gitPush}
+                onPull={project.gitPull}
+                onCheckoutBranch={project.gitCheckoutBranch}
+                onCreateBranch={project.gitCreateBranch}
+                onDiscardChanges={project.gitDiscardChanges}
+                hasProject={project.hasProject}
+              />
+            )}
+            {rightPanel === "search" && (
+              <SearchPanel
+                results={project.searchResults}
+                isSearching={project.isSearching}
+                onSearch={project.searchFiles}
+                onReplace={project.searchReplace}
+                onReplaceAll={project.searchReplaceAll}
+                onOpenResult={project.searchOpenResult}
+                totalMatches={project.searchTotalMatches}
+                hasProject={project.hasProject}
+              />
+            )}
+            {rightPanel === "ai" && (
+              <AIAssistantIDE
+                messages={project.aiMessages}
+                isProcessing={project.isAiProcessing}
+                onSendMessage={project.aiSendMessage}
+                onClearChat={project.aiClearChat}
+                onInsertCode={project.aiInsertCode}
+                currentFileName={project.activeFileName}
+                hasProject={project.hasProject}
+              />
+            )}
           </div>
         )}
       </div>
@@ -475,6 +547,18 @@ export default function AndroidIDEPage() {
                 <span className="flex items-center gap-1">
                   <Lock className="w-3 h-3" />
                   Secrets
+                </span>
+                <span className="flex items-center gap-1">
+                  <GitBranch className="w-3 h-3" />
+                  Git
+                </span>
+                <span className="flex items-center gap-1">
+                  <Search className="w-3 h-3" />
+                  Search
+                </span>
+                <span className="flex items-center gap-1">
+                  <Bot className="w-3 h-3" />
+                  AI Assistant
                 </span>
               </div>
             </div>

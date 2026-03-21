@@ -6,9 +6,15 @@ import type {
 } from "../components/IDE/BuildPanel";
 import type { EditorTab } from "../components/IDE/CodeEditor";
 import { detectLanguage } from "../components/IDE/CodeEditor";
+import type { AIAction, AIMessage } from "../components/IDE/AIAssistantIDE";
 import type {
   ApkAnalysis,
 } from "../components/IDE/ApkAnalyzer";
+import type { GitFileChange, GitState } from "../components/IDE/GitPanel";
+import type {
+  SearchFileResult,
+  SearchOptions,
+} from "../components/IDE/SearchPanel";
 import type {
   Breakpoint,
   DebugSession,
@@ -655,6 +661,28 @@ export function useAndroidProject() {
 
   // Secrets state
   const [secrets, setSecrets] = useState<Secret[]>([]);
+
+  // Git state
+  const [gitState, setGitState] = useState<GitState>({
+    currentBranch: "main",
+    branches: [
+      { name: "main", isCurrent: true, isRemote: false, lastCommit: "Initial commit" },
+      { name: "develop", isCurrent: false, isRemote: false, lastCommit: "Add feature" },
+      { name: "origin/main", isCurrent: false, isRemote: true, lastCommit: "Initial commit" },
+    ],
+    changes: [],
+    commits: [],
+    isClean: true,
+  });
+
+  // Search state
+  const [searchResults, setSearchResults] = useState<SearchFileResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTotalMatches, setSearchTotalMatches] = useState(0);
+
+  // AI Assistant state
+  const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
 
   // ── Project creation ────────────────────────────────────────────────────
   const createProject = useCallback((config: ProjectConfig) => {
@@ -1568,6 +1596,347 @@ export function useAndroidProject() {
     setSecrets((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
+  // ── Git operations ────────────────────────────────────────────────────────
+
+  const gitStageFile = useCallback((path: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) =>
+        c.path === path ? { ...c, staged: true } : c,
+      ),
+    }));
+  }, []);
+
+  const gitUnstageFile = useCallback((path: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) =>
+        c.path === path ? { ...c, staged: false } : c,
+      ),
+    }));
+  }, []);
+
+  const gitStageAll = useCallback(() => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) => ({ ...c, staged: true })),
+    }));
+  }, []);
+
+  const gitUnstageAll = useCallback(() => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.map((c) => ({ ...c, staged: false })),
+    }));
+  }, []);
+
+  const gitCommit = useCallback(
+    (message: string) => {
+      const now = new Date();
+      const newCommit = {
+        hash: `${Date.now().toString(16)}abcdef`,
+        shortHash: Date.now().toString(16).slice(-7),
+        message,
+        author: "Developer",
+        date: now.toLocaleDateString(),
+        branch: gitState.currentBranch,
+      };
+      setGitState((prev) => ({
+        ...prev,
+        commits: [newCommit, ...prev.commits],
+        changes: prev.changes.filter((c) => !c.staged),
+        isClean: prev.changes.filter((c) => !c.staged).length === 0,
+      }));
+    },
+    [gitState.currentBranch],
+  );
+
+  const gitPush = useCallback(() => {
+    // Simulated push
+  }, []);
+
+  const gitPull = useCallback(() => {
+    // Simulated pull
+  }, []);
+
+  const gitCheckoutBranch = useCallback((name: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      currentBranch: name,
+      branches: prev.branches.map((b) => ({
+        ...b,
+        isCurrent: b.name === name,
+      })),
+    }));
+  }, []);
+
+  const gitCreateBranch = useCallback(
+    (name: string) => {
+      setGitState((prev) => ({
+        ...prev,
+        currentBranch: name,
+        branches: [
+          ...prev.branches.map((b) => ({ ...b, isCurrent: false })),
+          {
+            name,
+            isCurrent: true,
+            isRemote: false,
+            lastCommit: prev.commits[0]?.message ?? "Initial commit",
+          },
+        ],
+      }));
+    },
+    [],
+  );
+
+  const gitDiscardChanges = useCallback((path: string) => {
+    setGitState((prev) => ({
+      ...prev,
+      changes: prev.changes.filter((c) => c.path !== path),
+      isClean: prev.changes.filter((c) => c.path !== path).length === 0,
+    }));
+  }, []);
+
+  // ── Search operations ─────────────────────────────────────────────────────
+
+  const searchFiles = useCallback(
+    (query: string, options: SearchOptions) => {
+      if (!query.trim() || !projectConfig) {
+        setSearchResults([]);
+        setSearchTotalMatches(0);
+        return;
+      }
+      setIsSearching(true);
+      setTimeout(() => {
+        // Simulate search across file contents
+        const results: SearchFileResult[] = [];
+        let total = 0;
+        for (const [path, content] of Object.entries(fileContents)) {
+          const lines = content.split("\n");
+          const matches: SearchFileResult["matches"] = [];
+          const searchQuery = options.caseSensitive
+            ? query
+            : query.toLowerCase();
+
+          lines.forEach((line, idx) => {
+            const searchLine = options.caseSensitive
+              ? line
+              : line.toLowerCase();
+            let col = searchLine.indexOf(searchQuery);
+            while (col !== -1) {
+              matches.push({
+                line: idx + 1,
+                column: col,
+                length: query.length,
+                lineContent: line.trim(),
+                preContext: "",
+                postContext: "",
+              });
+              col = searchLine.indexOf(searchQuery, col + 1);
+            }
+          });
+
+          if (matches.length > 0) {
+            results.push({
+              filePath: path,
+              fileName: path.split("/").pop() || path,
+              matches,
+            });
+            total += matches.length;
+          }
+        }
+        setSearchResults(results);
+        setSearchTotalMatches(total);
+        setIsSearching(false);
+      }, 300);
+    },
+    [projectConfig, fileContents],
+  );
+
+  const searchReplace = useCallback(
+    (_query: string, _replacement: string, _options: SearchOptions) => {
+      // Simulated replace
+    },
+    [],
+  );
+
+  const searchReplaceAll = useCallback(
+    (_query: string, _replacement: string, _options: SearchOptions) => {
+      // Simulated replace all
+    },
+    [],
+  );
+
+  const searchOpenResult = useCallback(
+    (filePath: string, _line: number) => {
+      // Open the file in the editor
+      const content = fileContents[filePath];
+      if (!content) return;
+
+      const existing = editorTabs.find((t) => t.id === filePath);
+      if (existing) {
+        setActiveTabId(existing.id);
+        return;
+      }
+
+      const fileName = filePath.split("/").pop() || filePath;
+      const tab: EditorTab = {
+        id: filePath,
+        filename: fileName,
+        filepath: filePath,
+        content,
+        language: detectLanguage(fileName),
+        isDirty: false,
+      };
+      setEditorTabs((prev) => [...prev, tab]);
+      setActiveTabId(tab.id);
+    },
+    [fileContents, editorTabs],
+  );
+
+  // ── AI Assistant operations ───────────────────────────────────────────────
+
+  const aiSendMessage = useCallback(
+    (message: string, action?: AIAction) => {
+      const userMsg: AIMessage = {
+        id: `msg-${Date.now()}`,
+        role: "user",
+        content: message,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setAiMessages((prev) => [...prev, userMsg]);
+      setIsAiProcessing(true);
+
+      // Simulate AI response
+      setTimeout(() => {
+        let responseContent = "";
+        let codeBlock: AIMessage["codeBlock"] = undefined;
+
+        if (action === "generate" || message.toLowerCase().includes("generate")) {
+          responseContent =
+            "Here is the generated code based on your request:";
+          codeBlock = {
+            language: "kotlin",
+            code: `@Composable
+fun GreetingCard(name: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Hello, $name!",
+                style = MaterialTheme.typography.headlineSmall
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Welcome to the app",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}`,
+          };
+        } else if (action === "explain" || message.toLowerCase().includes("explain")) {
+          responseContent =
+            "This code defines an Android Activity using Kotlin. The `onCreate` method is the entry point called when the activity is first created.\n\nThe `setContent` block is specific to Jetpack Compose - it sets up the Compose UI hierarchy. Inside, `AppTheme` applies Material Design theming, and `Scaffold` provides the basic layout structure with support for top bars, bottom bars, and FABs.\n\nThe `Greeting` composable is a simple function that displays text using the `Text` component.";
+        } else if (action === "fix" || message.toLowerCase().includes("fix")) {
+          responseContent =
+            "I found the issue. The crash is likely caused by a missing null check. Here is the fix:";
+          codeBlock = {
+            language: "kotlin",
+            code: `// Before (crashes on null)
+val name = intent.getStringExtra("name")
+textView.text = name.uppercase()
+
+// After (safe)
+val name = intent.getStringExtra("name") ?: "Guest"
+textView.text = name.uppercase()`,
+          };
+        } else if (action === "optimize" || message.toLowerCase().includes("optimize")) {
+          responseContent =
+            "Here are the optimizations I recommend:\n\n1. Use `remember` to cache expensive calculations\n2. Use `LazyColumn` instead of `Column` for large lists\n3. Move state hoisting up to reduce recompositions";
+          codeBlock = {
+            language: "kotlin",
+            code: `// Optimized: Use derivedStateOf to avoid unnecessary recomposition
+val filteredList by remember(searchQuery, items) {
+    derivedStateOf {
+        items.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
+}
+
+LazyColumn {
+    items(filteredList, key = { it.id }) { item ->
+        ItemRow(item = item)
+    }
+}`,
+          };
+        } else if (action === "test" || message.toLowerCase().includes("test")) {
+          responseContent = "Here are unit tests for the code:";
+          codeBlock = {
+            language: "kotlin",
+            code: `@Test
+fun \`greeting displays correct name\`() {
+    composeTestRule.setContent {
+        AppTheme {
+            Greeting(name = "Android")
+        }
+    }
+    composeTestRule
+        .onNodeWithText("Hello Android!")
+        .assertIsDisplayed()
+}
+
+@Test
+fun \`greeting with empty name shows default\`() {
+    composeTestRule.setContent {
+        AppTheme {
+            Greeting(name = "")
+        }
+    }
+    composeTestRule
+        .onNodeWithText("Hello !")
+        .assertIsDisplayed()
+}`,
+          };
+        } else {
+          responseContent =
+            "I can help with that! Could you provide more details about what you are looking for? I can generate code, explain existing code, fix bugs, optimize performance, or write tests.";
+        }
+
+        const assistantMsg: AIMessage = {
+          id: `msg-${Date.now()}`,
+          role: "assistant",
+          content: responseContent,
+          timestamp: new Date().toLocaleTimeString(),
+          codeBlock,
+        };
+        setAiMessages((prev) => [...prev, assistantMsg]);
+        setIsAiProcessing(false);
+      }, 1500);
+    },
+    [],
+  );
+
+  const aiClearChat = useCallback(() => {
+    setAiMessages([]);
+  }, []);
+
+  const aiInsertCode = useCallback(
+    (code: string) => {
+      if (!activeTabId) return;
+      setEditorTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === activeTabId
+            ? { ...tab, content: `${tab.content}\n\n${code}`, isDirty: true }
+            : tab,
+        ),
+      );
+    },
+    [activeTabId],
+  );
+
   // ── Layout preview helpers ──────────────────────────────────────────────
 
   const activeEditorContent = useMemo(() => {
@@ -1677,5 +2046,37 @@ export function useAndroidProject() {
     addSecret,
     updateSecret,
     deleteSecret,
+
+    // Git
+    gitState,
+    gitStageFile,
+    gitUnstageFile,
+    gitStageAll,
+    gitUnstageAll,
+    gitCommit,
+    gitPush,
+    gitPull,
+    gitCheckoutBranch,
+    gitCreateBranch,
+    gitDiscardChanges,
+
+    // Search
+    searchResults,
+    isSearching,
+    searchTotalMatches,
+    searchFiles,
+    searchReplace,
+    searchReplaceAll,
+    searchOpenResult,
+
+    // AI Assistant
+    aiMessages,
+    isAiProcessing,
+    aiSendMessage,
+    aiClearChat,
+    aiInsertCode,
+
+    // Active file info for AI context
+    activeFileName: editorTabs.find((t) => t.id === activeTabId)?.filename ?? null,
   };
 }
