@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import {
+  Activity,
   Bug,
   Code,
   Eye,
@@ -7,15 +8,18 @@ import {
   Hammer,
   Layers,
   Library,
+  Lock,
   Package,
   PanelLeftClose,
   PanelLeftOpen,
+  PieChart,
   Play,
   Smartphone,
   Terminal,
 } from "lucide-react";
 import React, { useState } from "react";
 
+import { ApkAnalyzer } from "../components/IDE/ApkAnalyzer";
 import { BuildPanel } from "../components/IDE/BuildPanel";
 import { CodeEditor } from "../components/IDE/CodeEditor";
 import { DebuggerPanel } from "../components/IDE/DebuggerPanel";
@@ -25,14 +29,16 @@ import { FileExplorer } from "../components/IDE/FileExplorer";
 import { IDETerminal } from "../components/IDE/IDETerminal";
 import { LayoutPreview } from "../components/IDE/LayoutPreview";
 import { LogcatViewer } from "../components/IDE/LogcatViewer";
+import { PerformanceMonitor } from "../components/IDE/PerformanceMonitor";
 import {
   type ProjectConfig,
   ProjectManager,
 } from "../components/IDE/ProjectManager";
+import { SecretsManager } from "../components/IDE/SecretsManager";
 
 import { useAndroidProject } from "../hooks/useAndroidProject";
 
-type RightPanel = "build" | "logcat" | "devices" | "debugger" | "dependencies" | null;
+type RightPanel = "build" | "logcat" | "devices" | "debugger" | "dependencies" | "apk" | "performance" | "secrets" | null;
 
 export default function AndroidIDEPage() {
   const project = useAndroidProject();
@@ -197,6 +203,33 @@ export default function AndroidIDEPage() {
             <Package className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Deps</span>
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("apk")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "apk" ? "bg-muted text-primary" : ""}`}
+          >
+            <PieChart className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">APK</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("performance")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "performance" ? "bg-muted text-primary" : ""}`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Perf</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("secrets")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "secrets" ? "bg-muted text-primary" : ""}`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Secrets</span>
+          </Button>
 
           <div className="w-px h-4 bg-border/50 mx-1" />
 
@@ -341,6 +374,33 @@ export default function AndroidIDEPage() {
                 hasProject={project.hasProject}
               />
             )}
+            {rightPanel === "apk" && (
+              <ApkAnalyzer
+                analysis={project.apkAnalysis}
+                onAnalyze={project.analyzeApk}
+                isAnalyzing={project.isAnalyzingApk}
+                hasProject={project.hasProject}
+              />
+            )}
+            {rightPanel === "performance" && (
+              <PerformanceMonitor
+                snapshots={project.perfSnapshots}
+                storage={project.storageInfo}
+                isMonitoring={project.isPerfMonitoring}
+                onToggleMonitoring={project.togglePerfMonitoring}
+                onClear={project.clearPerfData}
+                hasProject={project.hasProject}
+              />
+            )}
+            {rightPanel === "secrets" && (
+              <SecretsManager
+                secrets={project.secrets}
+                onAddSecret={project.addSecret}
+                onUpdateSecret={project.updateSecret}
+                onDeleteSecret={project.deleteSecret}
+                hasProject={project.hasProject}
+              />
+            )}
           </div>
         )}
       </div>
@@ -402,7 +462,19 @@ export default function AndroidIDEPage() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Package className="w-3 h-3" />
-                  Dependency Manager
+                  Dependencies
+                </span>
+                <span className="flex items-center gap-1">
+                  <PieChart className="w-3 h-3" />
+                  APK Analyzer
+                </span>
+                <span className="flex items-center gap-1">
+                  <Activity className="w-3 h-3" />
+                  Performance
+                </span>
+                <span className="flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  Secrets
                 </span>
               </div>
             </div>

@@ -7,6 +7,9 @@ import type {
 import type { EditorTab } from "../components/IDE/CodeEditor";
 import { detectLanguage } from "../components/IDE/CodeEditor";
 import type {
+  ApkAnalysis,
+} from "../components/IDE/ApkAnalyzer";
+import type {
   Breakpoint,
   DebugSession,
   DebugState,
@@ -14,6 +17,11 @@ import type {
   StackFrame,
 } from "../components/IDE/DebuggerPanel";
 import type { GradleDependency } from "../components/IDE/DependencyManager";
+import type {
+  ResourceSnapshot,
+  StorageInfo,
+} from "../components/IDE/PerformanceMonitor";
+import type { Secret } from "../components/IDE/SecretsManager";
 import type {
   AndroidDevice,
   EmulatorTemplate,
@@ -625,6 +633,28 @@ export function useAndroidProject() {
 
   // Dependency state
   const [dependencies, setDependencies] = useState<GradleDependency[]>([]);
+
+  // APK Analyzer state
+  const [apkAnalysis, setApkAnalysis] = useState<ApkAnalysis | null>(null);
+  const [isAnalyzingApk, setIsAnalyzingApk] = useState(false);
+
+  // Performance monitor state
+  const [perfSnapshots, setPerfSnapshots] = useState<ResourceSnapshot[]>([]);
+  const [isPerfMonitoring, setIsPerfMonitoring] = useState(false);
+  const [perfIntervalRef, setPerfIntervalRef] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [storageInfo] = useState<StorageInfo>({
+    used: 42 * 1024 * 1024,
+    total: 256 * 1024 * 1024,
+    breakdown: [
+      { label: "Code", size: 12 * 1024 * 1024, color: "#60a5fa" },
+      { label: "Resources", size: 18 * 1024 * 1024, color: "#4ade80" },
+      { label: "Dependencies", size: 8 * 1024 * 1024, color: "#a78bfa" },
+      { label: "Build Cache", size: 4 * 1024 * 1024, color: "#facc15" },
+    ],
+  });
+
+  // Secrets state
+  const [secrets, setSecrets] = useState<Secret[]>([]);
 
   // ── Project creation ────────────────────────────────────────────────────
   const createProject = useCallback((config: ProjectConfig) => {
@@ -1405,6 +1435,139 @@ export function useAndroidProject() {
     );
   }, []);
 
+  // ── APK Analyzer operations ──────────────────────────────────────────────
+
+  const analyzeApk = useCallback(() => {
+    if (!projectConfig) return;
+    setIsAnalyzingApk(true);
+    setTimeout(() => {
+      const analysis: ApkAnalysis = {
+        totalSize: 8.4 * 1024 * 1024,
+        downloadSize: 5.2 * 1024 * 1024,
+        minSdk: projectConfig.minSdk,
+        targetSdk: projectConfig.targetSdk,
+        versionCode: 1,
+        versionName: "1.0",
+        packageName: projectConfig.packageName,
+        permissions: [
+          "android.permission.INTERNET",
+          "android.permission.ACCESS_NETWORK_STATE",
+        ],
+        sizeBreakdown: [
+          {
+            name: "classes.dex",
+            size: 3.2 * 1024 * 1024,
+            percentage: 38.1,
+            icon: "code",
+            children: [
+              { name: "app code", size: 0.8 * 1024 * 1024, percentage: 9.5, icon: "code" },
+              { name: "kotlin-stdlib", size: 1.2 * 1024 * 1024, percentage: 14.3, icon: "code" },
+              { name: "androidx.*", size: 1.0 * 1024 * 1024, percentage: 11.9, icon: "code" },
+              { name: "other libs", size: 0.2 * 1024 * 1024, percentage: 2.4, icon: "code" },
+            ],
+          },
+          {
+            name: "res/",
+            size: 2.8 * 1024 * 1024,
+            percentage: 33.3,
+            icon: "resource",
+            children: [
+              { name: "drawable", size: 1.8 * 1024 * 1024, percentage: 21.4, icon: "resource" },
+              { name: "layout", size: 0.3 * 1024 * 1024, percentage: 3.6, icon: "resource" },
+              { name: "values", size: 0.4 * 1024 * 1024, percentage: 4.8, icon: "resource" },
+              { name: "mipmap", size: 0.3 * 1024 * 1024, percentage: 3.6, icon: "resource" },
+            ],
+          },
+          { name: "lib/", size: 1.5 * 1024 * 1024, percentage: 17.9, icon: "native" },
+          { name: "assets/", size: 0.6 * 1024 * 1024, percentage: 7.1, icon: "asset" },
+          { name: "META-INF/", size: 0.2 * 1024 * 1024, percentage: 2.4, icon: "other" },
+          { name: "other", size: 0.1 * 1024 * 1024, percentage: 1.2, icon: "other" },
+        ],
+        dexFiles: [
+          {
+            name: "classes.dex",
+            classCount: 4892,
+            methodCount: 32450,
+            fieldCount: 18230,
+            size: 3.2 * 1024 * 1024,
+          },
+        ],
+        signingInfo: {
+          version: "v2 (APK Signature Scheme v2)",
+          issuer: "CN=Android Debug, O=Android, C=US",
+          validFrom: "2024-01-01",
+          validTo: "2054-01-01",
+          algorithm: "SHA-256 with RSA",
+        },
+        totalMethodCount: 32450,
+        methodLimit: 65536,
+      };
+      setApkAnalysis(analysis);
+      setIsAnalyzingApk(false);
+    }, 2000);
+  }, [projectConfig]);
+
+  // ── Performance monitor operations ────────────────────────────────────────
+
+  const togglePerfMonitoring = useCallback(() => {
+    if (isPerfMonitoring) {
+      if (perfIntervalRef) {
+        clearInterval(perfIntervalRef);
+        setPerfIntervalRef(null);
+      }
+      setIsPerfMonitoring(false);
+    } else {
+      setIsPerfMonitoring(true);
+      const interval = setInterval(() => {
+        const snapshot: ResourceSnapshot = {
+          timestamp: Date.now(),
+          cpu: 15 + Math.random() * 40 + Math.sin(Date.now() / 3000) * 10,
+          memory: 128 + Math.random() * 80 + Math.sin(Date.now() / 5000) * 30,
+          network: {
+            rx: Math.random() * 2048,
+            tx: Math.random() * 512,
+          },
+          fps: 55 + Math.random() * 5,
+          threads: 12 + Math.floor(Math.random() * 4),
+        };
+        setPerfSnapshots((prev) => [...prev.slice(-120), snapshot]);
+      }, 1000);
+      setPerfIntervalRef(interval);
+    }
+  }, [isPerfMonitoring, perfIntervalRef]);
+
+  const clearPerfData = useCallback(() => {
+    setPerfSnapshots([]);
+  }, []);
+
+  // ── Secrets operations ────────────────────────────────────────────────────
+
+  const addSecret = useCallback((key: string, value: string) => {
+    const now = new Date().toLocaleString();
+    const secret: Secret = {
+      id: `secret-${Date.now()}`,
+      key,
+      value,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setSecrets((prev) => [...prev, secret]);
+  }, []);
+
+  const updateSecret = useCallback((id: string, key: string, value: string) => {
+    setSecrets((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, key, value, updatedAt: new Date().toLocaleString() }
+          : s,
+      ),
+    );
+  }, []);
+
+  const deleteSecret = useCallback((id: string) => {
+    setSecrets((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
   // ── Layout preview helpers ──────────────────────────────────────────────
 
   const activeEditorContent = useMemo(() => {
@@ -1496,5 +1659,23 @@ export function useAndroidProject() {
     // Layout preview
     activeXmlContent: activeEditorContent.content,
     activeXmlFileName: activeEditorContent.fileName,
+
+    // APK Analyzer
+    apkAnalysis,
+    isAnalyzingApk,
+    analyzeApk,
+
+    // Performance monitor
+    perfSnapshots,
+    storageInfo,
+    isPerfMonitoring,
+    togglePerfMonitoring,
+    clearPerfData,
+
+    // Secrets
+    secrets,
+    addSecret,
+    updateSecret,
+    deleteSecret,
   };
 }
