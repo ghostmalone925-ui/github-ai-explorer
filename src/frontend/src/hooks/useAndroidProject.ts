@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type {
   BuildOutput,
   BuildStatus,
@@ -6,6 +6,14 @@ import type {
 } from "../components/IDE/BuildPanel";
 import type { EditorTab } from "../components/IDE/CodeEditor";
 import { detectLanguage } from "../components/IDE/CodeEditor";
+import type {
+  Breakpoint,
+  DebugSession,
+  DebugState,
+  DebugVariable,
+  StackFrame,
+} from "../components/IDE/DebuggerPanel";
+import type { GradleDependency } from "../components/IDE/DependencyManager";
 import type {
   AndroidDevice,
   EmulatorTemplate,
@@ -607,6 +615,17 @@ export function useAndroidProject() {
     "term-1",
   );
 
+  // Debugger state
+  const [debugState, setDebugState] = useState<DebugState>("idle");
+  const [breakpoints, setBreakpoints] = useState<Breakpoint[]>([]);
+  const [debugVariables, setDebugVariables] = useState<DebugVariable[]>([]);
+  const [callStack, setCallStack] = useState<StackFrame[]>([]);
+  const [debugCurrentFile, setDebugCurrentFile] = useState<string | null>(null);
+  const [debugCurrentLine, setDebugCurrentLine] = useState<number | null>(null);
+
+  // Dependency state
+  const [dependencies, setDependencies] = useState<GradleDependency[]>([]);
+
   // ── Project creation ────────────────────────────────────────────────────
   const createProject = useCallback((config: ProjectConfig) => {
     const files = buildProjectFiles(config);
@@ -618,6 +637,104 @@ export function useAndroidProject() {
     setActiveTabId(null);
     setBuildOutput([]);
     setBuildStatus("idle");
+    setDebugState("idle");
+    setBreakpoints([]);
+    setDebugVariables([]);
+    setCallStack([]);
+
+    // Set default dependencies based on project config
+    const defaultDeps: GradleDependency[] = [
+      {
+        id: "dep-core-ktx",
+        group: "androidx.core",
+        artifact: "core-ktx",
+        version: "1.13.1",
+        scope: "implementation",
+        hasUpdate: false,
+        description: "Kotlin extensions for Android core",
+      },
+      {
+        id: "dep-lifecycle",
+        group: "androidx.lifecycle",
+        artifact: "lifecycle-runtime-ktx",
+        version: "2.8.4",
+        scope: "implementation",
+        hasUpdate: false,
+        description: "Lifecycle-aware components",
+      },
+      {
+        id: "dep-junit",
+        group: "junit",
+        artifact: "junit",
+        version: "4.13.2",
+        scope: "testImplementation",
+        hasUpdate: false,
+        description: "JUnit testing framework",
+      },
+      {
+        id: "dep-espresso",
+        group: "androidx.test.espresso",
+        artifact: "espresso-core",
+        version: "3.6.1",
+        scope: "androidTestImplementation",
+        hasUpdate: false,
+        description: "Android UI testing",
+      },
+    ];
+
+    if (config.useCompose) {
+      defaultDeps.push(
+        {
+          id: "dep-activity-compose",
+          group: "androidx.activity",
+          artifact: "activity-compose",
+          version: "1.9.1",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Compose integration with Activity",
+        },
+        {
+          id: "dep-compose-bom",
+          group: "androidx.compose",
+          artifact: "compose-bom",
+          version: "2024.08.00",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Compose Bill of Materials",
+        },
+        {
+          id: "dep-compose-material3",
+          group: "androidx.compose.material3",
+          artifact: "material3",
+          version: "1.2.1",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Material Design 3 for Compose",
+        },
+      );
+    } else {
+      defaultDeps.push(
+        {
+          id: "dep-appcompat",
+          group: "androidx.appcompat",
+          artifact: "appcompat",
+          version: "1.7.0",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "AppCompat support library",
+        },
+        {
+          id: "dep-material",
+          group: "com.google.android.material",
+          artifact: "material",
+          version: "1.12.0",
+          scope: "implementation",
+          hasUpdate: false,
+          description: "Material Design components",
+        },
+      );
+    }
+    setDependencies(defaultDeps);
 
     // Open the main activity file automatically
     const pkgPath = config.packageName.replace(/\./g, "/");
@@ -1086,6 +1203,221 @@ export function useAndroidProject() {
     );
   }, []);
 
+  // ── Debugger operations ─────────────────────────────────────────────────
+
+  const debugSession: DebugSession = useMemo(
+    () => ({
+      state: debugState,
+      breakpoints,
+      variables: debugVariables,
+      callStack,
+      currentFile: debugCurrentFile,
+      currentLine: debugCurrentLine,
+    }),
+    [
+      debugState,
+      breakpoints,
+      debugVariables,
+      callStack,
+      debugCurrentFile,
+      debugCurrentLine,
+    ],
+  );
+
+  const startDebug = useCallback(() => {
+    setDebugState("running");
+    // Simulate hitting a breakpoint after a short delay
+    setTimeout(() => {
+      setDebugState("paused");
+      const pkgPath = projectConfig?.packageName.replace(/\./g, "/") ?? "";
+      const mainFile = `app/src/main/java/${pkgPath}/MainActivity.kt`;
+      setDebugCurrentFile(mainFile);
+      setDebugCurrentLine(12);
+      setCallStack([
+        {
+          id: "frame-1",
+          functionName: "MainActivity.onCreate",
+          file: mainFile,
+          line: 12,
+          isCurrentFrame: true,
+        },
+        {
+          id: "frame-2",
+          functionName: "AppCompatActivity.onCreate",
+          file: "AppCompatActivity.kt",
+          line: 245,
+          isCurrentFrame: false,
+        },
+        {
+          id: "frame-3",
+          functionName: "Activity.performCreate",
+          file: "Activity.java",
+          line: 8169,
+          isCurrentFrame: false,
+        },
+      ]);
+      setDebugVariables([
+        {
+          name: "this",
+          value: "MainActivity@3a71f4",
+          type: "MainActivity",
+          children: [
+            {
+              name: "binding",
+              value: "ActivityMainBinding@7c2e",
+              type: "ActivityMainBinding",
+            },
+            { name: "lifecycle", value: "CREATED", type: "Lifecycle.State" },
+          ],
+        },
+        {
+          name: "savedInstanceState",
+          value: "null",
+          type: "Bundle?",
+        },
+      ]);
+    }, 1500);
+  }, [projectConfig]);
+
+  const stopDebug = useCallback(() => {
+    setDebugState("idle");
+    setDebugCurrentFile(null);
+    setDebugCurrentLine(null);
+    setCallStack([]);
+    setDebugVariables([]);
+  }, []);
+
+  const pauseDebug = useCallback(() => {
+    setDebugState("paused");
+  }, []);
+
+  const resumeDebug = useCallback(() => {
+    setDebugState("running");
+    setDebugVariables([]);
+    setCallStack([]);
+    // Simulate hitting next breakpoint
+    setTimeout(() => {
+      if (breakpoints.length > 0) {
+        setDebugState("paused");
+      }
+    }, 800);
+  }, [breakpoints]);
+
+  const stepOver = useCallback(() => {
+    setDebugCurrentLine((prev) => (prev !== null ? prev + 1 : null));
+  }, []);
+
+  const stepInto = useCallback(() => {
+    setDebugCurrentLine((prev) => (prev !== null ? prev + 1 : null));
+    setCallStack((prev) => [
+      {
+        id: `frame-${Date.now()}`,
+        functionName: "setContentView",
+        file: "Activity.java",
+        line: 3294,
+        isCurrentFrame: true,
+      },
+      ...prev.map((f) => ({ ...f, isCurrentFrame: false })),
+    ]);
+  }, []);
+
+  const stepOut = useCallback(() => {
+    setCallStack((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.slice(1);
+      if (next.length > 0) next[0] = { ...next[0], isCurrentFrame: true };
+      return next;
+    });
+  }, []);
+
+  const toggleBreakpoint = useCallback((id: string) => {
+    setBreakpoints((prev) =>
+      prev.map((bp) =>
+        bp.id === id ? { ...bp, enabled: !bp.enabled } : bp,
+      ),
+    );
+  }, []);
+
+  const removeBreakpoint = useCallback((id: string) => {
+    setBreakpoints((prev) => prev.filter((bp) => bp.id !== id));
+  }, []);
+
+  const clearBreakpoints = useCallback(() => {
+    setBreakpoints([]);
+  }, []);
+
+  // ── Dependency operations ───────────────────────────────────────────────
+
+  const addDependency = useCallback(
+    (dep: Omit<GradleDependency, "id" | "hasUpdate">) => {
+      const newDep: GradleDependency = {
+        ...dep,
+        id: `dep-${Date.now()}`,
+        hasUpdate: false,
+      };
+      setDependencies((prev) => [...prev, newDep]);
+    },
+    [],
+  );
+
+  const removeDependency = useCallback((id: string) => {
+    setDependencies((prev) => prev.filter((d) => d.id !== id));
+  }, []);
+
+  const updateDependency = useCallback((id: string, newVersion: string) => {
+    setDependencies((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, version: newVersion, hasUpdate: false, latestVersion: undefined }
+          : d,
+      ),
+    );
+  }, []);
+
+  const updateAllDependencies = useCallback(() => {
+    setDependencies((prev) =>
+      prev.map((d) =>
+        d.hasUpdate && d.latestVersion
+          ? { ...d, version: d.latestVersion, hasUpdate: false, latestVersion: undefined }
+          : d,
+      ),
+    );
+  }, []);
+
+  const refreshDependencies = useCallback(() => {
+    // Simulate checking for updates
+    setDependencies((prev) =>
+      prev.map((d) => {
+        const parts = d.version.split(".");
+        if (parts.length >= 3) {
+          const patch = Number.parseInt(parts[2], 10);
+          if (!Number.isNaN(patch) && Math.random() > 0.6) {
+            parts[2] = String(patch + 1);
+            return {
+              ...d,
+              hasUpdate: true,
+              latestVersion: parts.join("."),
+            };
+          }
+        }
+        return d;
+      }),
+    );
+  }, []);
+
+  // ── Layout preview helpers ──────────────────────────────────────────────
+
+  const activeEditorContent = useMemo(() => {
+    if (!activeTabId) return { content: null, fileName: null };
+    const tab = editorTabs.find((t) => t.id === activeTabId);
+    if (!tab) return { content: null, fileName: null };
+    const isXml = tab.filename.endsWith(".xml");
+    return {
+      content: isXml ? tab.content : null,
+      fileName: isXml ? tab.filename : null,
+    };
+  }, [activeTabId, editorTabs]);
+
   return {
     // Project
     projectConfig,
@@ -1139,5 +1471,30 @@ export function useAndroidProject() {
     closeTerminalTab,
     executeTerminalCommand,
     clearTerminal,
+
+    // Debugger
+    debugSession,
+    startDebug,
+    stopDebug,
+    pauseDebug,
+    resumeDebug,
+    stepOver,
+    stepInto,
+    stepOut,
+    toggleBreakpoint,
+    removeBreakpoint,
+    clearBreakpoints,
+
+    // Dependencies
+    dependencies,
+    addDependency,
+    removeDependency,
+    updateDependency,
+    updateAllDependencies,
+    refreshDependencies,
+
+    // Layout preview
+    activeXmlContent: activeEditorContent.content,
+    activeXmlFileName: activeEditorContent.fileName,
   };
 }

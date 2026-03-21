@@ -2,9 +2,12 @@ import { Button } from "@/components/ui/button";
 import {
   Bug,
   Code,
+  Eye,
   FolderPlus,
   Hammer,
   Layers,
+  Library,
+  Package,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
@@ -15,9 +18,12 @@ import React, { useState } from "react";
 
 import { BuildPanel } from "../components/IDE/BuildPanel";
 import { CodeEditor } from "../components/IDE/CodeEditor";
+import { DebuggerPanel } from "../components/IDE/DebuggerPanel";
+import { DependencyManager } from "../components/IDE/DependencyManager";
 import { DeviceManager } from "../components/IDE/DeviceManager";
 import { FileExplorer } from "../components/IDE/FileExplorer";
 import { IDETerminal } from "../components/IDE/IDETerminal";
+import { LayoutPreview } from "../components/IDE/LayoutPreview";
 import { LogcatViewer } from "../components/IDE/LogcatViewer";
 import {
   type ProjectConfig,
@@ -26,7 +32,7 @@ import {
 
 import { useAndroidProject } from "../hooks/useAndroidProject";
 
-type RightPanel = "build" | "logcat" | "devices" | null;
+type RightPanel = "build" | "logcat" | "devices" | "debugger" | "dependencies" | null;
 
 export default function AndroidIDEPage() {
   const project = useAndroidProject();
@@ -36,6 +42,7 @@ export default function AndroidIDEPage() {
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [showTerminal, setShowTerminal] = useState(true);
   const [terminalExpanded, setTerminalExpanded] = useState(false);
+  const [showLayoutPreview, setShowLayoutPreview] = useState(false);
 
   const toggleRightPanel = (panel: RightPanel) => {
     setRightPanel((prev) => (prev === panel ? null : panel));
@@ -172,8 +179,36 @@ export default function AndroidIDEPage() {
             <Smartphone className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Devices</span>
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("debugger")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "debugger" ? "bg-muted text-primary" : ""}`}
+          >
+            <Bug className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Debug</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRightPanel("dependencies")}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${rightPanel === "dependencies" ? "bg-muted text-primary" : ""}`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Deps</span>
+          </Button>
 
           <div className="w-px h-4 bg-border/50 mx-1" />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowLayoutPreview(!showLayoutPreview)}
+            className={`h-7 px-2 text-[11px] gap-1.5 ${showLayoutPreview ? "bg-muted text-primary" : ""}`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Preview</span>
+          </Button>
 
           <Button
             variant="ghost"
@@ -207,16 +242,26 @@ export default function AndroidIDEPage() {
 
         {/* Center: Code editor + terminal */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Editor */}
+          {/* Editor + Layout Preview */}
           <div className="flex-1 min-h-0 overflow-hidden flex">
-            <CodeEditor
-              tabs={project.editorTabs}
-              activeTabId={project.activeTabId}
-              onTabSelect={project.setActiveTabId}
-              onTabClose={project.closeTab}
-              onContentChange={project.updateContent}
-              onSave={project.saveFile}
-            />
+            <div className={`${showLayoutPreview ? "w-1/2" : "w-full"} min-w-0 overflow-hidden flex`}>
+              <CodeEditor
+                tabs={project.editorTabs}
+                activeTabId={project.activeTabId}
+                onTabSelect={project.setActiveTabId}
+                onTabClose={project.closeTab}
+                onContentChange={project.updateContent}
+                onSave={project.saveFile}
+              />
+            </div>
+            {showLayoutPreview && (
+              <div className="w-1/2 border-l border-border/50 overflow-hidden">
+                <LayoutPreview
+                  xmlContent={project.activeXmlContent}
+                  fileName={project.activeXmlFileName}
+                />
+              </div>
+            )}
           </div>
 
           {/* Terminal */}
@@ -269,6 +314,33 @@ export default function AndroidIDEPage() {
                 onInstallApk={project.installApk}
               />
             )}
+            {rightPanel === "debugger" && (
+              <DebuggerPanel
+                session={project.debugSession}
+                onStartDebug={project.startDebug}
+                onStopDebug={project.stopDebug}
+                onPause={project.pauseDebug}
+                onResume={project.resumeDebug}
+                onStepOver={project.stepOver}
+                onStepInto={project.stepInto}
+                onStepOut={project.stepOut}
+                onToggleBreakpoint={project.toggleBreakpoint}
+                onRemoveBreakpoint={project.removeBreakpoint}
+                onClearBreakpoints={project.clearBreakpoints}
+                hasProject={project.hasProject}
+              />
+            )}
+            {rightPanel === "dependencies" && (
+              <DependencyManager
+                dependencies={project.dependencies}
+                onAddDependency={project.addDependency}
+                onRemoveDependency={project.removeDependency}
+                onUpdateDependency={project.updateDependency}
+                onUpdateAll={project.updateAllDependencies}
+                onRefresh={project.refreshDependencies}
+                hasProject={project.hasProject}
+              />
+            )}
           </div>
         )}
       </div>
@@ -307,7 +379,7 @@ export default function AndroidIDEPage() {
                 <FolderPlus className="w-4 h-4" />
                 Create New Project
               </Button>
-              <div className="flex items-center gap-4 text-[10px] text-muted-foreground/50">
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-muted-foreground/50">
                 <span className="flex items-center gap-1">
                   <Layers className="w-3 h-3" />
                   Compose & Views
@@ -322,7 +394,15 @@ export default function AndroidIDEPage() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Bug className="w-3 h-3" />
-                  Logcat
+                  Debugger
+                </span>
+                <span className="flex items-center gap-1">
+                  <Eye className="w-3 h-3" />
+                  Layout Preview
+                </span>
+                <span className="flex items-center gap-1">
+                  <Package className="w-3 h-3" />
+                  Dependency Manager
                 </span>
               </div>
             </div>
